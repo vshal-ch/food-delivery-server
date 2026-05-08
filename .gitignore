@@ -1,0 +1,83 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+secret.properties
+.codex
+.codex/
+
+# --- Compiled & Build Files ---
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# --- IDE Settings ---
+# IntelliJ IDEA
+.idea/
+
+# Eclipse / Spring Tool Suite (STS)
+.sts4-cache/
+
+# --- Dependency Management ---
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+!mvnw
+!mvnw.cmd
+
+# Gradle wrapper
+.gradle/
+!gradle-wrapper.jar
+!gradlew
+!gradlew.bat
+
+# --- Environment & Sensitive Data ---
+.env
+.env.*
+application-local.properties
+application-local.yml
+*.jks
+*.p12
+
+# --- Logs ---
+*.log
+logs/
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+unnamed.zip

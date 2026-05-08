@@ -1,0 +1,35 @@
+spring:
+  config:
+    import: "optional:classpath:secret.properties"
+  datasource:
+    url: "jdbc:postgresql://localhost:5432/${db.name}"
+    username: ${db.username}
+    password: ${db.password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  redis:
+    host: ${redis.host}
+    port: ${redis.port}
+
+server:
+  port: ${app.port}
+
+app:
+  jwt:
+    access-expiry: 900000
+    refresh-expiry: 2592000000
+    access-secret: ${jwt.access-secret}
+    refresh-secret: ${jwt.refresh-secret}
