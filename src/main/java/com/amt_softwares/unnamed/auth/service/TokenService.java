@@ -1,12 +1,10 @@
 package com.amt_softwares.unnamed.auth.service;
 
-import com.amt_softwares.unnamed.auth.config.JwtProperties;
 import com.amt_softwares.unnamed.auth.dto.TokenResponse;
 import com.amt_softwares.unnamed.auth.entity.RefreshToken;
 import com.amt_softwares.unnamed.auth.repository.RefreshTokenRepository;
 import com.amt_softwares.unnamed.user.entity.User;
 import com.amt_softwares.unnamed.user.repository.UserRepository;
-import com.amt_softwares.unnamed.user.service.UserRoleService;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
