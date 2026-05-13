@@ -60,7 +60,7 @@ public class AddressController {
         User user = (User) authentication.getPrincipal();
         String role = getRole(authentication);
         addressService.deleteAddress(user.getId(), role, addressId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok().build();
     }
 
     @PatchMapping("/{addressId}/default")

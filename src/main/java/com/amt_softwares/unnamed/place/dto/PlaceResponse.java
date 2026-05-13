@@ -10,6 +10,7 @@ import java.util.UUID;
 @Builder
 public class PlaceResponse {
     private UUID id;
+    private UUID changeId;
     private UUID ownerId;
     private String displayName;
     private String description;
@@ -25,4 +26,5 @@ public class PlaceResponse {
     private boolean open;
     private boolean hidden;
     private String approvalStatus;
+    private String rejectionReason;
 }

@@ -81,3 +81,5 @@ logs/
 .DS_Store
 Thumbs.db
 unnamed.zip
+
+.gradle-home

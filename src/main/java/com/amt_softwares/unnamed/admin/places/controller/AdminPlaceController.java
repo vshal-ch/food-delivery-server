@@ -1,0 +1,58 @@
+package com.amt_softwares.unnamed.admin.places.controller;
+
+import com.amt_softwares.unnamed.admin.auth.entity.Admin;
+import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceResponse;
+import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceReviewRequest;
+import com.amt_softwares.unnamed.admin.places.service.AdminPlaceService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/admin/places")
+@RequiredArgsConstructor
+public class AdminPlaceController {
+
+    private final AdminPlaceService adminPlaceService;
+
+    @GetMapping
+    public ResponseEntity<List<AdminPlaceResponse>> getPlaces() {
+        return ResponseEntity.ok(adminPlaceService.getPlaces());
+    }
+
+    @GetMapping("/review")
+    public ResponseEntity<List<AdminPlaceResponse>> getPlacesSubmittedForReview() {
+        return ResponseEntity.ok(adminPlaceService.getPlacesSubmittedForReview());
+    }
+
+    @PostMapping("/review/{changeId}")
+    public ResponseEntity<AdminPlaceResponse> submitReview(
+            @PathVariable UUID changeId,
+            @Valid @RequestBody AdminPlaceReviewRequest request,
+            Authentication authentication
+    ) {
+        Admin admin = (Admin) authentication.getPrincipal();
+        return ResponseEntity.ok(adminPlaceService.submitReview(changeId, admin, request));
+    }
+
+    @PatchMapping("/{placeId}/hide")
+    public ResponseEntity<AdminPlaceResponse> hidePlace(@PathVariable UUID placeId) {
+        return ResponseEntity.ok(adminPlaceService.hidePlace(placeId));
+    }
+
+    @PatchMapping("/{placeId}/unhide")
+    public ResponseEntity<AdminPlaceResponse> unhidePlace(@PathVariable UUID placeId) {
+        return ResponseEntity.ok(adminPlaceService.unhidePlace(placeId));
+    }
+}

@@ -19,6 +19,9 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    placeholders:
+      admin_username: ${admin.username}
+      admin_password: ${admin.password}
 
   redis:
     host: ${redis.host}
@@ -29,7 +32,10 @@ server:
 
 app:
   jwt:
-    access-expiry: 900000
+    access-expiry: 9000000
     refresh-expiry: 2592000000
     access-secret: ${jwt.access-secret}
     refresh-secret: ${jwt.refresh-secret}
+  admin-jwt:
+    access-expiry: 9000000
+    access-secret: ${admin.jwt.access-secret}
