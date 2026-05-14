@@ -1,6 +1,7 @@
 package com.amt_softwares.unnamed.auth;
 
 import com.amt_softwares.unnamed.auth.service.JwtService;
+import com.amt_softwares.unnamed.common.api.ApiErrorWriter;
 import com.amt_softwares.unnamed.user.entity.User;
 import com.amt_softwares.unnamed.user.repository.UserRepository;
 import io.jsonwebtoken.Claims;
@@ -28,6 +29,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
+    private final ApiErrorWriter apiErrorWriter;
 
     @Override
     protected void doFilterInternal(
@@ -65,7 +67,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         } catch (Exception e) {
             log.error(e.getMessage());
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            apiErrorWriter.write(
+                    response,
+                    HttpServletResponse.SC_UNAUTHORIZED,
+                    "Invalid or expired token"
+            );
             return;
         }
 

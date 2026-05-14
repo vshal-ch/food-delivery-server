@@ -53,7 +53,6 @@ public class AdminJwtAuthFilter extends OncePerRequestFilter {
             Admin admin = adminRepository.findById(UUID.fromString(claims.getSubject()))
                     .filter(Admin::isEnabled)
                     .orElseThrow();
-
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             admin,
@@ -67,8 +66,7 @@ public class AdminJwtAuthFilter extends OncePerRequestFilter {
             apiErrorWriter.write(
                     response,
                     HttpServletResponse.SC_UNAUTHORIZED,
-                    "Invalid or expired admin token",
-                    request.getRequestURI()
+                    "Invalid or expired admin token"
             );
             return;
         }
