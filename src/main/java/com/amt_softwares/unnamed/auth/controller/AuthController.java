@@ -10,13 +10,13 @@ import com.amt_softwares.unnamed.user.service.UserRoleService;
 import com.amt_softwares.unnamed.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
+import org.springframework.web.server.ResponseStatusException;
 
 @Slf4j
 @RestController
@@ -48,13 +48,13 @@ public class AuthController {
         switch (result) {
 
             case MAX_ATTEMPTS_EXCEEDED:
-                return ResponseEntity.status(429).body("Too many attempts");
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many attempts");
 
             case OTP_EXPIRED:
-                return ResponseEntity.badRequest().body("OTP expired");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP expired");
 
             case INVALID_OTP:
-                return ResponseEntity.badRequest().body("Invalid OTP");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid OTP");
 
             case SUCCESS:
                 User user = userService.getOrCreateUser(request.getPhone());
@@ -67,7 +67,7 @@ public class AuthController {
                 return ResponseEntity.ok(tokens);
         }
 
-        return ResponseEntity.internalServerError().build();
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to verify OTP");
     }
 
     @PostMapping("/refresh")
