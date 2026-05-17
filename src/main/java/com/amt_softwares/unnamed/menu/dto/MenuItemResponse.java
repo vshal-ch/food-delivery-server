@@ -17,7 +17,6 @@ public class MenuItemResponse {
     private BigDecimal price;
     private boolean veg;
     private boolean available;
-    private boolean flagged;
+    private String flaggedStatus;
     private String flaggedReason;
-    private UUID flaggedBy;
 }

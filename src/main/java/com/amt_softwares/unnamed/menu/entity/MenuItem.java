@@ -2,6 +2,8 @@ package com.amt_softwares.unnamed.menu.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -9,6 +11,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -49,8 +53,10 @@ public class MenuItem {
     @Column(name = "is_available", nullable = false)
     private boolean available;
 
-    @Column(name = "is_flagged", nullable = false)
-    private boolean flagged;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "flagged_status", nullable = false, columnDefinition = "menu_item_flag_status")
+    private MenuItemFlagStatus flaggedStatus;
 
     @Column(name = "flagged_reason")
     private String flaggedReason;

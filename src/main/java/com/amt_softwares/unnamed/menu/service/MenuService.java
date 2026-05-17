@@ -1,8 +1,10 @@
 package com.amt_softwares.unnamed.menu.service;
 
+import com.amt_softwares.unnamed.admin.menu.dto.AdminMenuGroupResponse;
+import com.amt_softwares.unnamed.admin.menu.dto.AdminMenuItemResponse;
 import com.amt_softwares.unnamed.menu.dto.CreateMenuCategoryRequest;
 import com.amt_softwares.unnamed.menu.dto.CreateMenuItemRequest;
-import com.amt_softwares.unnamed.menu.dto.FlagMenuItemRequest;
+import com.amt_softwares.unnamed.admin.menu.dto.FlagMenuItemRequest;
 import com.amt_softwares.unnamed.menu.dto.MenuCategoryResponse;
 import com.amt_softwares.unnamed.menu.dto.MenuGroupResponse;
 import com.amt_softwares.unnamed.menu.dto.MenuItemResponse;
@@ -11,6 +13,7 @@ import com.amt_softwares.unnamed.menu.dto.UpdateMenuCategoryRequest;
 import com.amt_softwares.unnamed.menu.dto.UpdateMenuItemRequest;
 import com.amt_softwares.unnamed.menu.entity.MenuCategory;
 import com.amt_softwares.unnamed.menu.entity.MenuItem;
+import com.amt_softwares.unnamed.menu.entity.MenuItemFlagStatus;
 import com.amt_softwares.unnamed.menu.repository.MenuCategoryRepository;
 import com.amt_softwares.unnamed.menu.repository.MenuItemRepository;
 import com.amt_softwares.unnamed.place.entity.Place;
@@ -35,6 +38,9 @@ public class MenuService {
 
     private static final String PLACE_ROLE = "place";
     private static final String STATUS_APPROVED = "approved";
+    private static final MenuItemFlagStatus FLAG_STATUS_NO_FLAG = MenuItemFlagStatus.no_flag;
+    private static final MenuItemFlagStatus FLAG_STATUS_FLAGGED = MenuItemFlagStatus.flagged;
+    private static final MenuItemFlagStatus FLAG_STATUS_SUBMITTED_FOR_REVIEW = MenuItemFlagStatus.submitted_for_review;
 
     private final PlaceRepository placeRepository;
     private final UserRoleRepository userRoleRepository;
@@ -102,8 +108,9 @@ public class MenuService {
                 .price(request.getPrice())
                 .veg(request.getVeg())
                 .available(request.getAvailable() == null || request.getAvailable())
-                .flagged(false)
+                .flaggedStatus(FLAG_STATUS_NO_FLAG)
                 .flaggedReason(null)
+                .flaggedBy(null)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -121,6 +128,7 @@ public class MenuService {
         item.setPrice(request.getPrice());
         item.setVeg(request.getVeg());
         item.setAvailable(request.getAvailable());
+        markSubmittedForReviewIfFlagged(item);
         item.setUpdatedAt(LocalDateTime.now());
 
         return toItemResponse(menuItemRepository.save(item));
@@ -150,16 +158,86 @@ public class MenuService {
     }
 
     @Transactional
-    public MenuItemResponse flagMenuItemForAdmin(UUID itemId, UUID adminId, FlagMenuItemRequest request) {
+    public AdminMenuItemResponse flagMenuItemForAdmin(UUID itemId, UUID adminId, FlagMenuItemRequest request) {
         MenuItem item = menuItemRepository.findById(itemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Menu item not found"));
 
-        item.setFlagged(request.getFlagged());
-        item.setFlaggedReason(request.getFlagged() ? cleanOptional(request.getFlaggedReason()) : null);
-        item.setFlaggedBy(request.getFlagged() ? adminId : null);
+        MenuItemFlagStatus flaggedStatus = parseAdminFlagStatus(request.getFlaggedStatus());
+        if (FLAG_STATUS_FLAGGED.equals(flaggedStatus)) {
+            String reason = cleanOptional(request.getFlaggedReason());
+            if (reason == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reason is required when flagging an item");
+            }
+            item.setFlaggedStatus(FLAG_STATUS_FLAGGED);
+            item.setFlaggedReason(reason);
+            item.setFlaggedBy(adminId);
+        } else if (FLAG_STATUS_NO_FLAG.equals(flaggedStatus)) {
+            item.setFlaggedStatus(FLAG_STATUS_NO_FLAG);
+            item.setFlaggedReason(null);
+            item.setFlaggedBy(null);
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "flaggedStatus must be flagged or no_flag");
+        }
+
         item.setUpdatedAt(LocalDateTime.now());
 
-        return toItemResponse(menuItemRepository.save(item));
+        return toAdminItemResponse(menuItemRepository.save(item));
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminMenuItemResponse> getFlaggedItems() {
+        return menuItemRepository.findByFlaggedStatusOrderByUpdatedAtDesc(FLAG_STATUS_FLAGGED)
+                .stream()
+                .map(this::toAdminItemResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminMenuItemResponse> getSubmittedForReviewItems() {
+        return menuItemRepository.findByFlaggedStatusOrderByUpdatedAtDesc(FLAG_STATUS_SUBMITTED_FOR_REVIEW)
+                .stream()
+                .map(this::toAdminItemResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminMenuGroupResponse> getGroupedMenuForAdmin(UUID placeId) {
+        if (!placeRepository.existsById(placeId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Place not found");
+        }
+
+        List<MenuCategory> categories = menuCategoryRepository.findByPlaceIdOrderByCreatedAtAsc(placeId);
+        List<MenuItem> items = menuItemRepository.findByPlaceIdOrderByCreatedAtAsc(placeId);
+
+        Map<UUID, List<AdminMenuItemResponse>> itemsByCategory = new LinkedHashMap<>();
+        for (MenuCategory category : categories) {
+            itemsByCategory.put(category.getId(), new ArrayList<>());
+        }
+        List<AdminMenuItemResponse> uncategorizedItems = new ArrayList<>();
+
+        for (MenuItem item : items) {
+            AdminMenuItemResponse response = toAdminItemResponse(item);
+            if (item.getCategoryId() != null && itemsByCategory.containsKey(item.getCategoryId())) {
+                itemsByCategory.get(item.getCategoryId()).add(response);
+            } else {
+                uncategorizedItems.add(response);
+            }
+        }
+
+        List<AdminMenuGroupResponse> groupedMenu = new ArrayList<>();
+        for (MenuCategory category : categories) {
+            groupedMenu.add(AdminMenuGroupResponse.builder()
+                    .category(toCategoryResponse(category))
+                    .items(itemsByCategory.get(category.getId()))
+                    .build());
+        }
+
+        groupedMenu.add(AdminMenuGroupResponse.builder()
+                .category(null)
+                .items(uncategorizedItems)
+                .build());
+
+        return groupedMenu;
     }
 
     @Transactional(readOnly = true)
@@ -265,6 +343,13 @@ public class MenuService {
         return cleaned.isEmpty() ? null : cleaned;
     }
 
+    private void markSubmittedForReviewIfFlagged(MenuItem item) {
+        if (FLAG_STATUS_FLAGGED.equals(item.getFlaggedStatus()) ||
+                FLAG_STATUS_SUBMITTED_FOR_REVIEW.equals(item.getFlaggedStatus())) {
+            item.setFlaggedStatus(FLAG_STATUS_SUBMITTED_FOR_REVIEW);
+        }
+    }
+
     private MenuCategoryResponse toCategoryResponse(MenuCategory category) {
         return MenuCategoryResponse.builder()
                 .id(category.getId())
@@ -282,9 +367,38 @@ public class MenuService {
                 .price(item.getPrice())
                 .veg(item.isVeg())
                 .available(item.isAvailable())
-                .flagged(item.isFlagged())
+                .flaggedStatus(item.getFlaggedStatus().name())
+                .flaggedReason(item.getFlaggedReason())
+                .build();
+    }
+
+    private AdminMenuItemResponse toAdminItemResponse(MenuItem item) {
+        return AdminMenuItemResponse.builder()
+                .id(item.getId())
+                .placeId(item.getPlaceId())
+                .categoryId(item.getCategoryId())
+                .name(item.getName())
+                .description(item.getDescription())
+                .mediaId(item.getMediaId())
+                .price(item.getPrice())
+                .veg(item.isVeg())
+                .available(item.isAvailable())
+                .flaggedStatus(item.getFlaggedStatus().name())
                 .flaggedReason(item.getFlaggedReason())
                 .flaggedBy(item.getFlaggedBy())
                 .build();
+    }
+
+    private MenuItemFlagStatus parseAdminFlagStatus(String value) {
+        String cleaned = cleanRequired(value).toLowerCase();
+        if (FLAG_STATUS_FLAGGED.name().equals(cleaned)) {
+            return FLAG_STATUS_FLAGGED;
+        }
+
+        if (FLAG_STATUS_NO_FLAG.name().equals(cleaned)) {
+            return FLAG_STATUS_NO_FLAG;
+        }
+
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "flaggedStatus must be flagged or no_flag");
     }
 }
