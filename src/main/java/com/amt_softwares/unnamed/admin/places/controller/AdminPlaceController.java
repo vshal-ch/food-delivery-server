@@ -40,6 +40,13 @@ public class AdminPlaceController {
         return ResponseEntity.ok(adminPlaceService.getPlacesSubmittedForReview());
     }
 
+    @GetMapping("/review/{changeId}")
+    public ResponseEntity<AdminPlaceResponse> getPlaceSubmittedForReview(
+            @PathVariable UUID changeId
+    ) {
+        return ResponseEntity.ok(adminPlaceService.getPlaceSubmittedForReview(changeId));
+    }
+
     @PostMapping("/review/{changeId}")
     public ResponseEntity<AdminPlaceResponse> submitReview(
             @PathVariable UUID changeId,

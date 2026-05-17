@@ -37,7 +37,6 @@ import java.util.UUID;
 public class MenuService {
 
     private static final String PLACE_ROLE = "place";
-    private static final String STATUS_APPROVED = "approved";
     private static final MenuItemFlagStatus FLAG_STATUS_NO_FLAG = MenuItemFlagStatus.no_flag;
     private static final MenuItemFlagStatus FLAG_STATUS_FLAGGED = MenuItemFlagStatus.flagged;
     private static final MenuItemFlagStatus FLAG_STATUS_SUBMITTED_FOR_REVIEW = MenuItemFlagStatus.submitted_for_review;
@@ -49,7 +48,7 @@ public class MenuService {
 
     @Transactional
     public MenuCategoryResponse createCategory(UUID userId, String role, CreateMenuCategoryRequest request) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         LocalDateTime now = LocalDateTime.now();
         MenuCategory category = MenuCategory.builder()
                 .id(UUID.randomUUID())
@@ -64,7 +63,7 @@ public class MenuService {
 
     @Transactional(readOnly = true)
     public List<MenuCategoryResponse> getCategories(UUID userId, String role) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         return menuCategoryRepository.findByPlaceIdOrderByCreatedAtAsc(placeId)
                 .stream()
                 .map(this::toCategoryResponse)
@@ -73,13 +72,13 @@ public class MenuService {
 
     @Transactional(readOnly = true)
     public MenuCategoryResponse getCategory(UUID userId, String role, UUID categoryId) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         return toCategoryResponse(getOwnedCategory(placeId, categoryId));
     }
 
     @Transactional
     public MenuCategoryResponse updateCategory(UUID userId, String role, UUID categoryId, UpdateMenuCategoryRequest request) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         MenuCategory category = getOwnedCategory(placeId, categoryId);
         category.setName(cleanRequired(request.getName()));
         category.setUpdatedAt(LocalDateTime.now());
@@ -88,14 +87,14 @@ public class MenuService {
 
     @Transactional
     public void deleteCategory(UUID userId, String role, UUID categoryId) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         MenuCategory category = getOwnedCategory(placeId, categoryId);
         menuCategoryRepository.delete(category);
     }
 
     @Transactional
     public MenuItemResponse createMenuItem(UUID userId, String role, CreateMenuItemRequest request) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         UUID categoryId = validateOptionalCategory(placeId, request.getCategoryId());
         LocalDateTime now = LocalDateTime.now();
         MenuItem item = MenuItem.builder()
@@ -120,7 +119,7 @@ public class MenuService {
 
     @Transactional
     public MenuItemResponse updateMenuItem(UUID userId, String role, UUID itemId, UpdateMenuItemRequest request) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         MenuItem item = getOwnedMenuItem(placeId, itemId);
         item.setName(cleanRequired(request.getName()));
         item.setDescription(cleanOptional(request.getDescription()));
@@ -141,18 +140,20 @@ public class MenuService {
             UUID itemId,
             SetMenuItemAvailabilityRequest request
     ) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         MenuItem item = getOwnedMenuItem(placeId, itemId);
         item.setAvailable(request.getAvailable());
+        markSubmittedForReviewIfFlagged(item);
         item.setUpdatedAt(LocalDateTime.now());
         return toItemResponse(menuItemRepository.save(item));
     }
 
     @Transactional
     public MenuItemResponse changeMenuItemCategory(UUID userId, String role, UUID itemId, UUID categoryId) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         MenuItem item = getOwnedMenuItem(placeId, itemId);
         item.setCategoryId(validateOptionalCategory(placeId, categoryId));
+        markSubmittedForReviewIfFlagged(item);
         item.setUpdatedAt(LocalDateTime.now());
         return toItemResponse(menuItemRepository.save(item));
     }
@@ -166,7 +167,7 @@ public class MenuService {
         if (FLAG_STATUS_FLAGGED.equals(flaggedStatus)) {
             String reason = cleanOptional(request.getFlaggedReason());
             if (reason == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reason is required when flagging an item");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "flaggedReason is required when flagging an item");
             }
             item.setFlaggedStatus(FLAG_STATUS_FLAGGED);
             item.setFlaggedReason(reason);
@@ -242,19 +243,19 @@ public class MenuService {
 
     @Transactional(readOnly = true)
     public MenuItemResponse getMenuItem(UUID userId, String role, UUID itemId) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         return toItemResponse(getOwnedMenuItem(placeId, itemId));
     }
 
     @Transactional
     public void deleteMenuItem(UUID userId, String role, UUID itemId) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         menuItemRepository.delete(getOwnedMenuItem(placeId, itemId));
     }
 
     @Transactional(readOnly = true)
     public List<MenuGroupResponse> getGroupedMenu(UUID userId, String role) {
-        UUID placeId = getApprovedPlaceId(userId, role);
+        UUID placeId = getOwnerPlaceId(userId, role);
         List<MenuCategory> categories = menuCategoryRepository.findByPlaceIdOrderByCreatedAtAsc(placeId);
         List<MenuItem> items = menuItemRepository.findByPlaceIdOrderByCreatedAtAsc(placeId);
 
@@ -289,7 +290,7 @@ public class MenuService {
         return groupedMenu;
     }
 
-    private UUID getApprovedPlaceId(UUID userId, String role) {
+    private UUID getOwnerPlaceId(UUID userId, String role) {
         if (!PLACE_ROLE.equals(role)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only place users can manage menu");
         }
@@ -299,11 +300,7 @@ public class MenuService {
         }
 
         Place place = placeRepository.findByOwnerId(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Approved place not found"));
-
-        if (!STATUS_APPROVED.equals(place.getApprovalStatus())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Place must be approved before managing menu");
-        }
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Place not found"));
 
         return place.getId();
     }

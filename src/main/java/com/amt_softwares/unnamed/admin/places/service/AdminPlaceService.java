@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,27 +42,79 @@ public class AdminPlaceService {
 
     @Transactional(readOnly = true)
     public List<AdminPlaceResponse> getPlacesSubmittedForReview() {
-        return placeChangeRepository.findByStatusInOrderByCreatedAtDesc(ACTIVE_CHANGE_STATUSES)
+        List<AdminPlaceResponse> submittedPlaces = new ArrayList<>();
+        submittedPlaces.addAll(placeRepository.findByApprovalStatusInOrderByCreatedAtDesc(ACTIVE_CHANGE_STATUSES)
                 .stream()
                 .map(this::toResponse)
-                .toList();
+                .toList());
+        submittedPlaces.addAll(placeChangeRepository.findByStatusInOrderByCreatedAtDesc(ACTIVE_CHANGE_STATUSES)
+                .stream()
+                .map(this::toResponse)
+                .toList());
+
+        return submittedPlaces;
+    }
+
+    @Transactional(readOnly = true)
+    public AdminPlaceResponse getPlaceSubmittedForReview(UUID changeId) {
+        return placeChangeRepository.findByIdAndStatusIn(changeId, ACTIVE_CHANGE_STATUSES)
+                .map(this::toResponse)
+                .orElseGet(() -> toResponse(getReviewablePlace(changeId)));
     }
 
     @Transactional
     public AdminPlaceResponse submitReview(UUID changeId, Admin admin, AdminPlaceReviewRequest request) {
-        PlaceChange placeChange = placeChangeRepository.findByIdAndStatusIn(changeId, ACTIVE_CHANGE_STATUSES)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pending place submission not found"));
-
         String status = cleanRequired(request.getApprovalStatus()).toLowerCase();
-        if (STATUS_APPROVED.equals(status)) {
-            return approve(placeChange, admin, request.getReviewComments());
+        return placeChangeRepository.findByIdAndStatusIn(changeId, ACTIVE_CHANGE_STATUSES)
+                .map(placeChange -> {
+                    if (STATUS_APPROVED.equals(status)) {
+                        return approve(placeChange, admin, request.getReviewComments());
+                    }
+
+                    if (STATUS_REJECTED.equals(status)) {
+                        return reject(placeChange, admin, request.getReviewComments());
+                    }
+
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "approvalStatus must be approved or rejected");
+                })
+                .orElseGet(() -> {
+                    Place place = getReviewablePlace(changeId);
+                    if (STATUS_APPROVED.equals(status)) {
+                        return approve(place, admin, request.getReviewComments());
+                    }
+
+                    if (STATUS_REJECTED.equals(status)) {
+                        return reject(place, admin, request.getReviewComments());
+                    }
+
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "approvalStatus must be approved or rejected");
+                });
+    }
+
+    private AdminPlaceResponse approve(Place place, Admin admin, String reviewComments) {
+        LocalDateTime now = LocalDateTime.now();
+        place.setApprovalStatus(STATUS_APPROVED);
+        place.setHidden(false);
+        place.setReviewedBy(admin.getId());
+        place.setReviewedAt(now);
+        place.setReviewComments(cleanOptional(reviewComments));
+        place.setUpdatedAt(now);
+        return toResponse(placeRepository.save(place));
+    }
+
+    private AdminPlaceResponse reject(Place place, Admin admin, String rejectionReason) {
+        String cleanedReason = cleanOptional(rejectionReason);
+        if (cleanedReason == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "reviewComments is required when rejecting");
         }
 
-        if (STATUS_REJECTED.equals(status)) {
-            return reject(placeChange, admin, request.getReviewComments());
-        }
-
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "approvalStatus must be approved or rejected");
+        place.setApprovalStatus(STATUS_REJECTED);
+        place.setHidden(true);
+        place.setReviewedBy(admin.getId());
+        place.setReviewedAt(LocalDateTime.now());
+        place.setReviewComments(cleanedReason);
+        place.setUpdatedAt(LocalDateTime.now());
+        return toResponse(placeRepository.save(place));
     }
 
     @Transactional
@@ -162,6 +215,11 @@ public class AdminPlaceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Place not found"));
     }
 
+    private Place getReviewablePlace(UUID placeId) {
+        return placeRepository.findByIdAndApprovalStatusIn(placeId, ACTIVE_CHANGE_STATUSES)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pending place submission not found"));
+    }
+
     private String cleanRequired(String value) {
         return value.trim();
     }
@@ -194,6 +252,7 @@ public class AdminPlaceService {
                 .open(place.isOpen())
                 .hidden(place.isHidden())
                 .approvalStatus(place.getApprovalStatus())
+                .rejectionReason(STATUS_REJECTED.equals(place.getApprovalStatus()) ? place.getReviewComments() : null)
                 .reviewedBy(place.getReviewedBy())
                 .reviewedAt(place.getReviewedAt())
                 .reviewComments(place.getReviewComments())
