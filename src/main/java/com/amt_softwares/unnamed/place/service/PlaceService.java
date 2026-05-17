@@ -3,6 +3,7 @@ package com.amt_softwares.unnamed.place.service;
 import com.amt_softwares.unnamed.place.dto.CreatePlaceRequest;
 import com.amt_softwares.unnamed.place.dto.PlaceResponse;
 import com.amt_softwares.unnamed.place.dto.PlaceStateResponse;
+import com.amt_softwares.unnamed.place.dto.SetPlaceOpenRequest;
 import com.amt_softwares.unnamed.place.dto.UpdatePlaceRequest;
 import com.amt_softwares.unnamed.place.entity.Place;
 import com.amt_softwares.unnamed.place.entity.PlaceChange;
@@ -27,6 +28,8 @@ public class PlaceService {
     private static final String PLACE_ROLE = "place";
     private static final String CHANGE_STATUS_REJECTED = "rejected";
     private static final String CHANGE_STATUS_PENDING = "pending";
+    private static final String STATUS_APPROVED = "approved";
+    private static final String STATUS_PENDING = "pending";
     private static final List<String> ACTIVE_CHANGE_STATUSES = List.of(CHANGE_STATUS_PENDING, CHANGE_STATUS_REJECTED);
 
     private final PlaceRepository placeRepository;
@@ -41,13 +44,9 @@ public class PlaceService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Place already exists for this user");
         }
 
-        if (placeChangeRepository.existsByOwnerIdAndPlaceIdIsNullAndStatusIn(userId, ACTIVE_CHANGE_STATUSES)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Place submission already exists for this user");
-        }
-
-        PlaceChange placeChange = PlaceChange.builder()
+        LocalDateTime now = LocalDateTime.now();
+        Place place = Place.builder()
                 .id(UUID.randomUUID())
-                .placeId(null)
                 .ownerId(userId)
                 .displayName(cleanRequired(request.getDisplayName()))
                 .description(cleanOptional(request.getDescription()))
@@ -60,11 +59,14 @@ public class PlaceService {
                 .pincode(cleanRequired(request.getPincode()))
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
-                .status(CHANGE_STATUS_PENDING)
-                .createdAt(LocalDateTime.now())
+                .open(false)
+                .hidden(true)
+                .approvalStatus(STATUS_PENDING)
+                .createdAt(now)
+                .updatedAt(now)
                 .build();
 
-        return toResponse(placeChangeRepository.save(placeChange));
+        return toResponse(placeRepository.save(place));
     }
 
     @Transactional(readOnly = true)
@@ -80,10 +82,17 @@ public class PlaceService {
                     .build();
         }
 
-        Place approvedPlace = place.get();
+        Place savedPlace = place.get();
+        if (!STATUS_APPROVED.equals(savedPlace.getApprovalStatus())) {
+            return PlaceStateResponse.builder()
+                    .approvedDetails(null)
+                    .unapprovedDetails(toResponse(savedPlace))
+                    .build();
+        }
+
         PlaceResponse unapprovedDetails = placeChangeRepository
                 .findFirstByPlaceIdAndOwnerIdAndStatusInOrderByCreatedAtDesc(
-                        approvedPlace.getId(),
+                        savedPlace.getId(),
                         userId,
                         ACTIVE_CHANGE_STATUSES
                 )
@@ -91,7 +100,7 @@ public class PlaceService {
                 .orElse(null);
 
         return PlaceStateResponse.builder()
-                .approvedDetails(toResponse(approvedPlace))
+                .approvedDetails(toResponse(savedPlace))
                 .unapprovedDetails(unapprovedDetails)
                 .build();
     }
@@ -113,16 +122,31 @@ public class PlaceService {
                     .build();
         }
 
-        Place approvedPlace = place.get();
+        Place savedPlace = place.get();
+        if (!STATUS_APPROVED.equals(savedPlace.getApprovalStatus())) {
+            applyRequest(savedPlace, request);
+            savedPlace.setApprovalStatus(STATUS_PENDING);
+            savedPlace.setReviewedBy(null);
+            savedPlace.setReviewedAt(null);
+            savedPlace.setReviewComments(null);
+            savedPlace.setUpdatedAt(LocalDateTime.now());
+            Place updatedPlace = placeRepository.save(savedPlace);
+
+            return PlaceStateResponse.builder()
+                    .approvedDetails(null)
+                    .unapprovedDetails(toResponse(updatedPlace))
+                    .build();
+        }
+
         PlaceChange placeChange = placeChangeRepository
                 .findFirstByPlaceIdAndOwnerIdAndStatusInOrderByCreatedAtDesc(
-                        approvedPlace.getId(),
+                        savedPlace.getId(),
                         userId,
                         ACTIVE_CHANGE_STATUSES
                 )
                 .orElseGet(() -> PlaceChange.builder()
                         .id(UUID.randomUUID())
-                        .placeId(approvedPlace.getId())
+                        .placeId(savedPlace.getId())
                         .ownerId(userId)
                         .createdAt(LocalDateTime.now())
                         .build());
@@ -132,9 +156,26 @@ public class PlaceService {
         PlaceChange savedChange = placeChangeRepository.save(placeChange);
 
         return PlaceStateResponse.builder()
-                .approvedDetails(toResponse(approvedPlace))
+                .approvedDetails(toResponse(savedPlace))
                 .unapprovedDetails(toResponse(savedChange))
                 .build();
+    }
+
+    @Transactional
+    public PlaceResponse setOpenStatus(UUID userId, String authenticatedRole, SetPlaceOpenRequest request) {
+        verifyPlaceRole(userId, authenticatedRole);
+
+        Place place = placeRepository.findByOwnerId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Approved place not found"));
+
+        if (!"approved".equals(place.getApprovalStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Place must be approved before changing open status");
+        }
+
+        place.setOpen(request.getOpen());
+        place.setUpdatedAt(LocalDateTime.now());
+
+        return toResponse(placeRepository.save(place));
     }
 
     private void verifyPlaceRole(UUID userId, String authenticatedRole) {
@@ -165,6 +206,20 @@ public class PlaceService {
         placeChange.setPincode(cleanRequired(request.getPincode()));
         placeChange.setLatitude(request.getLatitude());
         placeChange.setLongitude(request.getLongitude());
+    }
+
+    private void applyRequest(Place place, UpdatePlaceRequest request) {
+        place.setDisplayName(cleanRequired(request.getDisplayName()));
+        place.setDescription(cleanOptional(request.getDescription()));
+        place.setPhone(cleanRequired(request.getPhone()));
+        place.setPureVeg(request.getPureVeg());
+        place.setAddressLine1(cleanRequired(request.getAddressLine1()));
+        place.setAddressLine2(cleanOptional(request.getAddressLine2()));
+        place.setCity(cleanRequired(request.getCity()));
+        place.setState(cleanRequired(request.getState()));
+        place.setPincode(cleanRequired(request.getPincode()));
+        place.setLatitude(request.getLatitude());
+        place.setLongitude(request.getLongitude());
     }
 
     private void markPending(PlaceChange placeChange) {
@@ -207,7 +262,7 @@ public class PlaceService {
                 .open(place.isOpen())
                 .hidden(place.isHidden())
                 .approvalStatus(place.getApprovalStatus())
-                .rejectionReason(null)
+                .rejectionReason(CHANGE_STATUS_REJECTED.equals(place.getApprovalStatus()) ? place.getReviewComments() : null)
                 .build();
     }
 

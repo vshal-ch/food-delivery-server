@@ -1,9 +1,12 @@
 package com.amt_softwares.unnamed.admin.places.controller;
 
 import com.amt_softwares.unnamed.admin.auth.entity.Admin;
+import com.amt_softwares.unnamed.admin.menu.dto.AdminMenuGroupResponse;
 import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceResponse;
 import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceReviewRequest;
 import com.amt_softwares.unnamed.admin.places.service.AdminPlaceService;
+import com.amt_softwares.unnamed.menu.service.MenuService;
+import com.amt_softwares.unnamed.place.dto.SetPlaceOpenRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +28,7 @@ import java.util.UUID;
 public class AdminPlaceController {
 
     private final AdminPlaceService adminPlaceService;
+    private final MenuService menuService;
 
     @GetMapping
     public ResponseEntity<List<AdminPlaceResponse>> getPlaces() {
@@ -34,6 +38,13 @@ public class AdminPlaceController {
     @GetMapping("/review")
     public ResponseEntity<List<AdminPlaceResponse>> getPlacesSubmittedForReview() {
         return ResponseEntity.ok(adminPlaceService.getPlacesSubmittedForReview());
+    }
+
+    @GetMapping("/review/{changeId}")
+    public ResponseEntity<AdminPlaceResponse> getPlaceSubmittedForReview(
+            @PathVariable UUID changeId
+    ) {
+        return ResponseEntity.ok(adminPlaceService.getPlaceSubmittedForReview(changeId));
     }
 
     @PostMapping("/review/{changeId}")
@@ -54,5 +65,18 @@ public class AdminPlaceController {
     @PatchMapping("/{placeId}/unhide")
     public ResponseEntity<AdminPlaceResponse> unhidePlace(@PathVariable UUID placeId) {
         return ResponseEntity.ok(adminPlaceService.unhidePlace(placeId));
+    }
+
+    @PatchMapping("/{placeId}/open-status")
+    public ResponseEntity<AdminPlaceResponse> setOpenStatus(
+            @PathVariable UUID placeId,
+            @Valid @RequestBody SetPlaceOpenRequest request
+    ) {
+        return ResponseEntity.ok(adminPlaceService.setOpenStatus(placeId, request));
+    }
+
+    @GetMapping("/{placeId}/menu")
+    public ResponseEntity<List<AdminMenuGroupResponse>> getPlaceMenu(@PathVariable UUID placeId) {
+        return ResponseEntity.ok(menuService.getGroupedMenuForAdmin(placeId));
     }
 }
