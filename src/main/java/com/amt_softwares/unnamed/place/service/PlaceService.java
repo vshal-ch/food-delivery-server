@@ -3,6 +3,7 @@ package com.amt_softwares.unnamed.place.service;
 import com.amt_softwares.unnamed.place.dto.CreatePlaceRequest;
 import com.amt_softwares.unnamed.place.dto.PlaceResponse;
 import com.amt_softwares.unnamed.place.dto.PlaceStateResponse;
+import com.amt_softwares.unnamed.place.dto.SetPlaceOpenRequest;
 import com.amt_softwares.unnamed.place.dto.UpdatePlaceRequest;
 import com.amt_softwares.unnamed.place.entity.Place;
 import com.amt_softwares.unnamed.place.entity.PlaceChange;
@@ -135,6 +136,23 @@ public class PlaceService {
                 .approvedDetails(toResponse(approvedPlace))
                 .unapprovedDetails(toResponse(savedChange))
                 .build();
+    }
+
+    @Transactional
+    public PlaceResponse setOpenStatus(UUID userId, String authenticatedRole, SetPlaceOpenRequest request) {
+        verifyPlaceRole(userId, authenticatedRole);
+
+        Place place = placeRepository.findByOwnerId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Approved place not found"));
+
+        if (!"approved".equals(place.getApprovalStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Place must be approved before changing open status");
+        }
+
+        place.setOpen(request.getOpen());
+        place.setUpdatedAt(LocalDateTime.now());
+
+        return toResponse(placeRepository.save(place));
     }
 
     private void verifyPlaceRole(UUID userId, String authenticatedRole) {

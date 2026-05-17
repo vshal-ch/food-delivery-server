@@ -4,6 +4,7 @@ import com.amt_softwares.unnamed.admin.auth.entity.Admin;
 import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceResponse;
 import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceReviewRequest;
 import com.amt_softwares.unnamed.admin.places.service.AdminPlaceService;
+import com.amt_softwares.unnamed.place.dto.SetPlaceOpenRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -54,5 +55,13 @@ public class AdminPlaceController {
     @PatchMapping("/{placeId}/unhide")
     public ResponseEntity<AdminPlaceResponse> unhidePlace(@PathVariable UUID placeId) {
         return ResponseEntity.ok(adminPlaceService.unhidePlace(placeId));
+    }
+
+    @PatchMapping("/{placeId}/open-status")
+    public ResponseEntity<AdminPlaceResponse> setOpenStatus(
+            @PathVariable UUID placeId,
+            @Valid @RequestBody SetPlaceOpenRequest request
+    ) {
+        return ResponseEntity.ok(adminPlaceService.setOpenStatus(placeId, request));
     }
 }

@@ -5,10 +5,10 @@ import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceResponse;
 import com.amt_softwares.unnamed.admin.places.dto.AdminPlaceReviewRequest;
 import com.amt_softwares.unnamed.place.entity.Place;
 import com.amt_softwares.unnamed.place.entity.PlaceChange;
+import com.amt_softwares.unnamed.place.dto.SetPlaceOpenRequest;
 import com.amt_softwares.unnamed.place.repository.PlaceChangeRepository;
 import com.amt_softwares.unnamed.place.repository.PlaceRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminPlaceService {
@@ -54,7 +53,6 @@ public class AdminPlaceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pending place submission not found"));
 
         String status = cleanRequired(request.getApprovalStatus()).toLowerCase();
-        log.info(status);
         if (STATUS_APPROVED.equals(status)) {
             return approve(placeChange, admin, request.getReviewComments());
         }
@@ -82,6 +80,14 @@ public class AdminPlaceService {
         return toResponse(placeRepository.save(place));
     }
 
+    @Transactional
+    public AdminPlaceResponse setOpenStatus(UUID placeId, SetPlaceOpenRequest request) {
+        Place place = getPlace(placeId);
+        place.setOpen(request.getOpen());
+        place.setUpdatedAt(LocalDateTime.now());
+        return toResponse(placeRepository.save(place));
+    }
+
     private AdminPlaceResponse approve(PlaceChange placeChange, Admin admin, String reviewComments) {
         LocalDateTime now = LocalDateTime.now();
         Place place = placeChange.getPlaceId() == null
@@ -100,7 +106,6 @@ public class AdminPlaceService {
 
     private AdminPlaceResponse reject(PlaceChange placeChange, Admin admin, String rejectionReason) {
         String cleanedReason = cleanOptional(rejectionReason);
-        log.info(rejectionReason);
         if (cleanedReason == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "rejectionReason is required when rejecting");
         }
