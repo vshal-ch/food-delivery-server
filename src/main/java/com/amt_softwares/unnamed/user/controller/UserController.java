@@ -13,7 +13,6 @@ import java.util.Map;
 
 @RestController
 @Slf4j
-@RequestMapping("/user")
 @RequiredArgsConstructor
 public class UserController {
     @GetMapping("/me")

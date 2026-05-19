@@ -43,7 +43,7 @@ public class SecurityConfig{
                         .dispatcherTypeMatchers(ERROR).permitAll()
                         .requestMatchers("/admin/auth/login").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .anyRequest().authenticated()
+                        .anyRequest().hasAuthority("admin")
                 )
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
@@ -69,6 +69,8 @@ public class SecurityConfig{
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
+                        .requestMatchers("/owner/**").hasAuthority("place")
+                        .requestMatchers("/user/**").hasAuthority("user")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
