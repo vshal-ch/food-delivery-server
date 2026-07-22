@@ -10,6 +10,11 @@ import java.util.UUID;
 
 public interface MenuItemRepository extends JpaRepository<MenuItem, UUID> {
     List<MenuItem> findByPlaceIdOrderByCreatedAtAsc(UUID placeId);
+    List<MenuItem> findByPlaceIdAndAvailableTrueAndFlaggedStatusOrderByCreatedAtAsc(
+            UUID placeId,
+            MenuItemFlagStatus flaggedStatus
+    );
     List<MenuItem> findByFlaggedStatusOrderByUpdatedAtDesc(MenuItemFlagStatus flaggedStatus);
     Optional<MenuItem> findByIdAndPlaceId(UUID id, UUID placeId);
+    Optional<MenuItem> findByIdAndAvailableTrueAndFlaggedStatus(UUID id, MenuItemFlagStatus flaggedStatus);
 }
