@@ -30,6 +30,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final ApiErrorWriter apiErrorWriter;
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        // Do not run this filter if the request is going to /auth/ endpoints
+        return path.endsWith("send-otp") || path.endsWith("verify-otp");
+    }
 
     @Override
     protected void doFilterInternal(
