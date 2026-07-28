@@ -66,6 +66,11 @@ public class PlaceService {
                 .updatedAt(now)
                 .build();
 
+        userRoleRepository.findByUserIdAndRole(userId, PLACE_ROLE).ifPresent(userRole -> {
+            userRole.setNew(false);
+            userRoleRepository.save(userRole);
+        });
+
         return toResponse(placeRepository.save(place));
     }
 

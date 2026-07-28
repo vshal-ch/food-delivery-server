@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -15,6 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "user_roles")
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -28,6 +30,9 @@ public class UserRole {
 
     @Column(nullable = false)
     private String role;
+
+    @Column(name = "is_new", nullable = false)
+    private boolean isNew;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

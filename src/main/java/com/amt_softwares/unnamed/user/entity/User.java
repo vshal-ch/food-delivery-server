@@ -29,9 +29,6 @@ public class User {
 
     private String email;
 
-    @Column(name = "is_new", nullable = false)
-    private boolean isNew;
-
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

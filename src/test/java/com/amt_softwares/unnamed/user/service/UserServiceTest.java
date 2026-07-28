@@ -2,6 +2,7 @@ package com.amt_softwares.unnamed.user.service;
 
 import com.amt_softwares.unnamed.user.dto.UpdateUserProfileRequest;
 import com.amt_softwares.unnamed.user.entity.User;
+import com.amt_softwares.unnamed.user.entity.UserRole;
 import com.amt_softwares.unnamed.user.repository.UserRepository;
 import com.amt_softwares.unnamed.user.repository.UserRoleRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +46,6 @@ class UserServiceTest {
         User existingUser = User.builder()
                 .id(UUID.randomUUID())
                 .phone("9999999999")
-                .isNew(false)
                 .createdAt(LocalDateTime.now().minusDays(1))
                 .updatedAt(LocalDateTime.now().minusDays(1))
                 .build();
@@ -70,7 +70,6 @@ class UserServiceTest {
         User savedUser = userCaptor.getValue();
 
         assertThat(savedUser.getPhone()).isEqualTo("9999999999");
-        assertThat(savedUser.isNew()).isTrue();
         assertThat(savedUser.getCreatedAt()).isNotNull();
         assertThat(savedUser.getUpdatedAt()).isNotNull();
         assertThat(result.getPhone()).isEqualTo("9999999999");
@@ -86,14 +85,21 @@ class UserServiceTest {
                 .phone("9999999999")
                 .name("Old Name")
                 .email("old@example.com")
-                .isNew(true)
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
+                .build();
+        UserRole userRole = UserRole.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .role("user")
+                .isNew(true)
+                .createdAt(createdAt)
                 .build();
         UpdateUserProfileRequest request = new UpdateUserProfileRequest();
         request.setEmail("  new@example.com  ");
 
         when(userRoleRepository.existsByUserIdAndRole(userId, "user")).thenReturn(true);
+        when(userRoleRepository.findByUserIdAndRole(userId, "user")).thenReturn(Optional.of(userRole));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -101,7 +107,7 @@ class UserServiceTest {
 
         assertThat(result.getName()).isEqualTo("Old Name");
         assertThat(result.getEmail()).isEqualTo("new@example.com");
-        assertThat(result.isNew()).isFalse();
+        assertThat(userRole.isNew()).isFalse();
         assertThat(result.getUpdatedAt()).isAfter(updatedAt);
     }
 
@@ -112,11 +118,19 @@ class UserServiceTest {
         request.setName("   ");
 
         when(userRoleRepository.existsByUserIdAndRole(userId, "user")).thenReturn(true);
+        when(userRoleRepository.findByUserIdAndRole(userId, "user")).thenReturn(Optional.of(
+                UserRole.builder()
+                        .id(UUID.randomUUID())
+                        .userId(userId)
+                        .role("user")
+                        .isNew(true)
+                        .createdAt(LocalDateTime.now().minusDays(1))
+                        .build()
+        ));
         when(userRepository.findById(userId)).thenReturn(Optional.of(
                 User.builder()
                         .id(userId)
                         .phone("9999999999")
-                        .isNew(true)
                         .createdAt(LocalDateTime.now().minusDays(1))
                         .updatedAt(LocalDateTime.now().minusHours(1))
                         .build()

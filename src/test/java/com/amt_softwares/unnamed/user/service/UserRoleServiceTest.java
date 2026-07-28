@@ -8,12 +8,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,6 +56,7 @@ class UserRoleServiceTest {
         verify(userRoleRepository).save(userRoleCaptor.capture());
         assertThat(userRoleCaptor.getValue().getUserId()).isEqualTo(userId);
         assertThat(userRoleCaptor.getValue().getRole()).isEqualTo("place");
+        assertThat(userRoleCaptor.getValue().isNew()).isTrue();
         assertThat(userRoleCaptor.getValue().getCreatedAt()).isNotNull();
     }
 
@@ -67,5 +71,32 @@ class UserRoleServiceTest {
         List<String> roles = userRoleService.getRoles(userId);
 
         assertThat(roles).containsExactly("user", "place");
+    }
+
+    @Test
+    void setIsNewFalseUpdatesStoredRoleFlag() {
+        UUID userId = UUID.randomUUID();
+        UserRole userRole = UserRole.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .role("user")
+                .isNew(true)
+                .createdAt(LocalDateTime.now().minusDays(1))
+                .build();
+        when(userRoleRepository.findByUserIdAndRole(userId, "user")).thenReturn(Optional.of(userRole));
+
+        userRoleService.setIsNewFalse(userId, "user");
+
+        assertThat(userRole.isNew()).isFalse();
+        verify(userRoleRepository).save(userRole);
+    }
+
+    @Test
+    void getUserRoleThrowsWhenRoleMissing() {
+        UUID userId = UUID.randomUUID();
+        when(userRoleRepository.findByUserIdAndRole(userId, "user")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userRoleService.getUserRole(userId, "user"))
+                .isInstanceOf(ResponseStatusException.class);
     }
 }

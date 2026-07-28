@@ -3,6 +3,8 @@ package com.amt_softwares.unnamed.user.controller;
 import com.amt_softwares.unnamed.user.dto.UpdateUserProfileRequest;
 import com.amt_softwares.unnamed.user.dto.UserResponse;
 import com.amt_softwares.unnamed.user.entity.User;
+import com.amt_softwares.unnamed.user.entity.UserRole;
+import com.amt_softwares.unnamed.user.service.UserRoleService;
 import com.amt_softwares.unnamed.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,36 +21,38 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class UserController {
     private final UserService userService;
+    private final UserRoleService userRoleService;
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getMe(Authentication authentication) {
         User user = (User) authentication.getPrincipal();
         String role = getRole(authentication);
-        return ResponseEntity.ok(toResponse(user, role));
+        UserRole userRole = userRoleService.getUserRole(user.getId(), role);
+        return ResponseEntity.ok(toResponse(user, role, userRole.isNew()));
     }
 
     @PutMapping("/user/profile")
     public ResponseEntity<UserResponse> updateProfile(
             @Valid @RequestBody UpdateUserProfileRequest request,
-        Authentication authentication
+            Authentication authentication
     ) {
         User user = (User) authentication.getPrincipal();
         String role = getRole(authentication);
         User updatedUser = userService.updateProfile(user.getId(), role, request);
-        return ResponseEntity.ok(toResponse(updatedUser, role));
+        return ResponseEntity.ok(toResponse(updatedUser, role, false));
     }
 
     private String getRole(Authentication authentication) {
         return authentication.getAuthorities().iterator().next().getAuthority();
     }
 
-    private UserResponse toResponse(User user, String role) {
+    private UserResponse toResponse(User user, String role, boolean isNew) {
         return UserResponse.builder()
                 .id(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .isNew(user.isNew())
+                .isNew(isNew)
                 .role(role)
                 .createdAt(user.getCreatedAt())
                 .build();
